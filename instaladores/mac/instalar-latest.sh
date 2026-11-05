@@ -48,11 +48,33 @@ hdiutil attach "$DMG" -nobrowse -readonly -noautoopen -mountpoint "$MOUNT" >/dev
 [[ -d "$MOUNT/Nodo.app" ]] || { echo "Nao encontrei Nodo.app dentro do instalador."; exit 1; }
 
 APP_DEST="/Applications/Nodo.app"
+STAGED="/Applications/.Nodo.app.new.$"
+BACKUP="/Applications/.Nodo.app.backup.$"
+cleanup_install() {
+  if [[ -d "$STAGED" ]]; then sudo rm -rf "$STAGED"; fi
+  if [[ ! -e "$APP_DEST" && -d "$BACKUP" ]]; then sudo mv "$BACKUP" "$APP_DEST"; fi
+}
+trap 'cleanup_install; cleanup' EXIT
+
+# Copia e valida a nova versão antes de tocar na instalação atual.
+sudo rm -rf "$STAGED" "$BACKUP"
+sudo ditto "$MOUNT/Nodo.app" "$STAGED"
+if [[ ! -x "$STAGED/Contents/MacOS/Nodo" || ! -f "$STAGED/Contents/Info.plist" ]]; then
+  echo "ERRO: o aplicativo baixado está incompleto; a instalação atual foi preservada."
+  exit 1
+fi
+
 if [[ -e "$APP_DEST" ]]; then
   echo "Atualizando instalacao existente em /Applications..."
-  sudo rm -rf "$APP_DEST"
+  sudo mv "$APP_DEST" "$BACKUP"
 fi
-sudo ditto "$MOUNT/Nodo.app" "$APP_DEST"
+if ! sudo mv "$STAGED" "$APP_DEST"; then
+  echo "ERRO: não foi possível ativar a nova versão."
+  if [[ -d "$BACKUP" && ! -e "$APP_DEST" ]]; then sudo mv "$BACKUP" "$APP_DEST"; fi
+  exit 1
+fi
+sudo rm -rf "$BACKUP"
+trap cleanup EXIT
 
 mkdir -p "$HOME/.local/bin"
 ln -sf "$APP_DEST/Contents/MacOS/nodo-cli" "$HOME/.local/bin/nodo"
