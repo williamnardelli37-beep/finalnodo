@@ -25,13 +25,13 @@ def deployment_versions(load_commands):
     NÃO representa a versão mínima do macOS.
     """
     found = []
-    blocks = re.split(r"(?=^Load command \\d+\\s*$)", load_commands, flags=re.MULTILINE)
+    blocks = re.split(r"(?=^Load command \d+\s*$)", load_commands, flags=re.MULTILINE)
     for block in blocks:
-        if re.search(r"^\\s*cmd\\s+LC_BUILD_VERSION\\s*$", block, re.MULTILINE):
-            match = re.search(r"^\\s*minos\\s+([0-9]+(?:\\.[0-9]+){1,2})\\s*$",
+        if re.search(r"^\s*cmd\s+LC_BUILD_VERSION\s*$", block, re.MULTILINE):
+            match = re.search(r"^\s*minos\s+([0-9]+(?:\.[0-9]+){1,2})\s*$",
                               block, re.MULTILINE)
-        elif re.search(r"^\\s*cmd\\s+LC_VERSION_MIN_MACOSX\\s*$", block, re.MULTILINE):
-            match = re.search(r"^\\s*version\\s+([0-9]+(?:\\.[0-9]+){1,2})\\s*$",
+        elif re.search(r"^\s*cmd\s+LC_VERSION_MIN_MACOSX\s*$", block, re.MULTILINE):
+            match = re.search(r"^\s*version\s+([0-9]+(?:\.[0-9]+){1,2})\s*$",
                               block, re.MULTILINE)
         else:
             continue
