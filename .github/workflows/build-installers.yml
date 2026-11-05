@@ -220,6 +220,6 @@ jobs:
               owner: context.repo.owner, repo: context.repo.repo, path,
               message: 'Atualiza manifesto dos três instaladores NODO 3.0.5',
               sha: current.data.sha,
-              content: Buffer.from(JSON.stringify(manifest, null, 2) + '\\n').toString('base64'),
+              content: Buffer.from(JSON.stringify(manifest, null, 2) + '\n').toString('base64'),
               branch: 'main'
             });
