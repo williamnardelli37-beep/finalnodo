@@ -48,8 +48,8 @@ hdiutil attach "$DMG" -nobrowse -readonly -noautoopen -mountpoint "$MOUNT" >/dev
 [[ -d "$MOUNT/Nodo.app" ]] || { echo "Nao encontrei Nodo.app dentro do instalador."; exit 1; }
 
 APP_DEST="/Applications/Nodo.app"
-STAGED="/Applications/.Nodo.app.new.$"
-BACKUP="/Applications/.Nodo.app.backup.$"
+STAGED="/Applications/.Nodo.app.new.$$"
+BACKUP="/Applications/.Nodo.app.backup.$$"
 cleanup_install() {
   if [[ -d "$STAGED" ]]; then sudo rm -rf "$STAGED"; fi
   if [[ ! -e "$APP_DEST" && -d "$BACKUP" ]]; then sudo mv "$BACKUP" "$APP_DEST"; fi
