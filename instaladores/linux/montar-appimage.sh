@@ -41,7 +41,6 @@ INFO
 
 cd "$TOOLS"
 export QMAKE="$QT_ROOT_DIR/bin/qmake"
-export EXTRA_PLATFORM_PLUGINS="offscreen"
 export VERSION
 export LDAI_OUTPUT="$ROOT/build/NODO-${VERSION}-Linux-x86_64.AppImage"
 "$TOOLS/linuxdeploy-x86_64.AppImage" \
