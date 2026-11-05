@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v3.0.5'
+      - 'v3.0.5*'
 
 permissions:
   contents: write
@@ -12,7 +12,7 @@ permissions:
 jobs:
   macos:
     name: macOS universal (Intel + Apple Silicon)
-    runs-on: macos-26-intel
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - name: Install Qt 6.8.4
