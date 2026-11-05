@@ -35,6 +35,12 @@ jobs:
         run: cmake --build build --config Release --parallel 4
       - name: Test CLI/server
         run: python3 testes/platform_smoke.py build/nodo
+      - name: Full server and security suites
+        run: |
+          python3 testes/rodar.py build/nodo
+          python3 testes/seguranca.py build/nodo
+      - name: SDK integration suite
+        run: node testes/sdk.mjs build/nodo
       - name: Test GUI
         run: |
           export QT_QPA_PLATFORM=offscreen
@@ -177,3 +183,43 @@ jobs:
             release-assets/Nodo-3.0.5-mac-universal.dmg
             release-assets/NODO-3.0.5-Windows-modern-10-11-x64.zip
             release-assets/NODO-3.0.5-Linux-x86_64.AppImage
+
+      - name: Update downloads manifest
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: context.ref.replace('refs/tags/', '')
+            });
+            const byName = Object.fromEntries(release.assets.map(a => [a.name, a.browser_download_url]));
+            const expected = [
+              'Nodo-3.0.5-mac-universal.dmg',
+              'NODO-3.0.5-Windows-modern-10-11-x64.zip',
+              'NODO-3.0.5-Linux-x86_64.AppImage'
+            ];
+            if (release.assets.length !== 3 || expected.some(name => !byName[name])) {
+              throw new Error('A Release não contém exatamente os três instaladores esperados.');
+            }
+            const path = 'downloads/releases.json';
+            const current = await github.rest.repos.getContent({
+              owner: context.repo.owner, repo: context.repo.repo, path, ref: 'main'
+            });
+            const manifest = JSON.parse(Buffer.from(current.data.content, 'base64').toString('utf8'));
+            manifest.releases = [{
+              version: '3.0.5',
+              stable: true,
+              downloads: {
+                macos: { url: byName[expected[0]], arch: 'universal (Intel + Apple Silicon)', filename: expected[0] },
+                windows: { url: byName[expected[1]], arch: 'x64', filename: expected[1] },
+                linux: { url: byName[expected[2]], arch: 'x86_64', filename: expected[2] }
+              }
+            }];
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: context.repo.owner, repo: context.repo.repo, path,
+              message: 'Atualiza manifesto dos três instaladores NODO 3.0.5',
+              sha: current.data.sha,
+              content: Buffer.from(JSON.stringify(manifest, null, 2) + '\\n').toString('base64'),
+              branch: 'main'
+            });
