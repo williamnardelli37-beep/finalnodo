@@ -3,7 +3,7 @@ set -euo pipefail
 
 VERSION="3.0.5"
 TAG="v${VERSION}"
-REPO_URL="https://github.com/williamnardelli37-beep/newhjhr.git"
+REPO_URL="https://github.com/williamnardelli37-beep/finalnodo.git"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK_DIR="${TMPDIR:-/tmp}/NODO-PUBLICAR-${VERSION}"
 
@@ -66,5 +66,5 @@ git tag -a "$TAG" -m "NODO Comercial $VERSION"
 git push origin "$TAG"
 
 printf '\nPublicacao iniciada com sucesso.\n'
-echo "Acompanhe: https://github.com/williamnardelli37-beep/newhjhr/actions"
-echo "Releases: https://github.com/williamnardelli37-beep/newhjhr/releases"
+echo "Acompanhe: https://github.com/williamnardelli37-beep/finalnodo/actions"
+echo "Releases: https://github.com/williamnardelli37-beep/finalnodo/releases"
