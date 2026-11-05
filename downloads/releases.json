@@ -1,4 +1,26 @@
 {
   "product": "NODO",
-  "releases": []
+  "releases": [
+    {
+      "version": "3.0.5",
+      "stable": true,
+      "downloads": {
+        "macos": {
+          "url": "https://github.com/williamnardelli37-beep/finalnodo/releases/download/v3.0.5-fix5/Nodo-3.0.5-mac-universal.dmg",
+          "arch": "universal (Intel + Apple Silicon)",
+          "filename": "Nodo-3.0.5-mac-universal.dmg"
+        },
+        "windows": {
+          "url": "https://github.com/williamnardelli37-beep/finalnodo/releases/download/v3.0.5-fix5/NODO-3.0.5-Windows-modern-10-11-x64.zip",
+          "arch": "x64",
+          "filename": "NODO-3.0.5-Windows-modern-10-11-x64.zip"
+        },
+        "linux": {
+          "url": "https://github.com/williamnardelli37-beep/finalnodo/releases/download/v3.0.5-fix5/NODO-3.0.5-Linux-x86_64.AppImage",
+          "arch": "x86_64",
+          "filename": "NODO-3.0.5-Linux-x86_64.AppImage"
+        }
+      }
+    }
+  ]
 }
