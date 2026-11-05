@@ -15,10 +15,10 @@ jobs:
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
-      - name: Install Qt 6.8.4
+      - name: Install Qt 6.8.3
         uses: jurplel/install-qt-action@v4.5.0
         with:
-          version: '6.8.4'
+          version: '6.8.3'
           host: mac
           target: desktop
           arch: clang_64
@@ -65,10 +65,10 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - name: Install Qt 6.8.4 / MSVC 2022
+      - name: Install Qt 6.8.3 / MSVC 2022
         uses: jurplel/install-qt-action@v4.5.0
         with:
-          version: '6.8.4'
+          version: '6.8.3'
           host: windows
           target: desktop
           arch: win64_msvc2022_64
@@ -113,10 +113,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libfuse2 file patchelf desktop-file-utils
-      - name: Install Qt 6.8.4
+      - name: Install Qt 6.8.3
         uses: jurplel/install-qt-action@v4.5.0
         with:
-          version: '6.8.4'
+          version: '6.8.3'
           host: linux
           target: desktop
           arch: linux_gcc_64
