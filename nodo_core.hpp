@@ -9,6 +9,8 @@
 #define X_OK 1
 #endif
 #include <algorithm>
+#include <array>
+#include <cstddef>
 #include <atomic>
 #include <chrono>
 #include <climits>
@@ -31,6 +33,7 @@
 #include <sys/resource.h>
 #endif
 using namespace std;
+using nodo_ssize_t = std::ptrdiff_t;
 
 #include "guia_embutido.hpp"
 #ifndef NODO_VERSION_STRING
@@ -411,7 +414,7 @@ static bool writePrivado(const string& p, const string& c) {
   int fd = open(p.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
   if (fd < 0) return false;
   size_t o = 0;
-  while (o < c.size()) { ssize_t n = write(fd, c.data() + o, c.size() - o); if (n <= 0) { cerrar(fd); return false; } o += n; }
+  while (o < c.size()) { nodo_ssize_t n = write(fd, c.data() + o, c.size() - o); if (n <= 0) { cerrar(fd); return false; } o += n; }
   cerrar(fd);
   nodoChmod(p.c_str(), 0600);
   return true;
@@ -449,7 +452,7 @@ static bool http_do(const string& hp, const string& method, const string& path, 
   if (send(fd, rq.data(), rq.size(), 0) < 0) { cerrar(fd); return false; }
   string all;
   char buf[8192];
-  ssize_t n;
+  nodo_ssize_t n;
   while ((n = recv(fd, buf, sizeof buf, 0)) > 0 && all.size() < 64u * 1024 * 1024) all.append(buf, n);
   cerrar(fd);
   bool ok = all.size() > 12 && all.compare(0, 5, "HTTP/") == 0 && all[9] == '2';
@@ -740,7 +743,7 @@ static void discovery() {
   while (true) {
     sockaddr_in from{};
     socklen_t fl = sizeof from;
-    ssize_t n = recvfrom(fd, buf, 255, 0, (sockaddr*)&from, &fl);
+    nodo_ssize_t n = recvfrom(fd, buf, 255, 0, (sockaddr*)&from, &fl);
     if (n <= 0) continue;
     buf[n] = 0;
     auto f = split(buf, '|');
@@ -1297,7 +1300,7 @@ static thread_local size_t tlBytesIn = 0;
 static void sendAll(int c, const string& s) {
   size_t o = 0;
   while (o < s.size()) {
-    ssize_t n = send(c, s.data() + o, s.size() - o, 0);
+    nodo_ssize_t n = send(c, s.data() + o, s.size() - o, 0);
     if (n <= 0) return;
     o += n;
     tlBytesOut += n;
@@ -1723,7 +1726,7 @@ static void atender(int c, const string& peerIp) {
   size_t he = string::npos;
   while (he == string::npos && buf.size() < 16384) {
     if (time(0) - t0 > 10) return;  // protege contra conexoes lentas (slowloris)
-    ssize_t n = recv(c, tmp, sizeof tmp, 0);
+    nodo_ssize_t n = recv(c, tmp, sizeof tmp, 0);
     if (n <= 0) return;
     buf.append(tmp, n);
     he = buf.find("\r\n\r\n");
@@ -1797,7 +1800,7 @@ static void atender(int c, const string& peerIp) {
   if (r.body.size() < cl && r.h.count("expect") && lower(r.h["expect"]) == "100-continue") sendAll(c, "HTTP/1.1 100 Continue\r\n\r\n");
   while (r.body.size() < cl) {
     if (time(0) - t0 > 30) return;
-    ssize_t n = recv(c, tmp, sizeof tmp, 0);
+    nodo_ssize_t n = recv(c, tmp, sizeof tmp, 0);
     if (n <= 0) break;
     r.body.append(tmp, n);
     tlBytesIn += n;
