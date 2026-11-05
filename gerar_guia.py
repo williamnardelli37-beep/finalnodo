@@ -157,5 +157,4 @@ open('guia.html', 'w').write(doc)
 assert ')HTML"' not in doc
 chunks = [doc[i:i+8000] for i in range(0, len(doc), 8000)]
 hpp = '#pragma once\n// Gerado por gerar_guia.py - nao edite a mao.\nstatic const char* GUIA_HTML =\n' + ''.join('    ' + json.dumps(chunk, ensure_ascii=False) + '\n' for chunk in chunks) + ';\n'
-open('guia_embutido.hpp', 'w').write(hpp)
 print(len(doc), 'bytes')
