@@ -1,0 +1,239 @@
+name: Build NODO desktop installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: macOS 12+ universal (Intel + Apple Silicon)
+    runs-on: macos-26-intel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 6.8.3 LTS (minimum macOS 12)
+        uses: jurplel/install-qt-action@v4.5.0
+        with:
+          version: '6.8.3'
+          host: mac
+          target: desktop
+          arch: clang_64
+          cache: true
+      - name: Configure universal app with Monterey deployment target
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DNODO_BUILD_GUI=ON -DNODO_QT_MAJOR=6
+          -DNODO_MAC_ARCH=universal
+          -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Test CLI/server on macOS runner
+        run: python3 testes/platform_smoke.py build/nodo
+      - name: Verify Qt offscreen plugin and launch GUI
+        run: |
+          export QT_QPA_PLATFORM=offscreen
+          export QT_QPA_PLATFORM_PLUGIN_PATH="$QT_ROOT_DIR/plugins/platforms"
+          export QT_PLUGIN_PATH="$QT_ROOT_DIR/plugins"
+          python3 testes/desktop_smoke.py build/Nodo.app/Contents/MacOS/Nodo
+      - name: Verify both CPU architectures before packaging
+        run: |
+          archs="$(lipo -archs build/Nodo.app/Contents/MacOS/Nodo)"
+          echo "Architectures: $archs"
+          python3 - <<'PY'
+          import subprocess
+          archs = set(subprocess.check_output(["lipo", "-archs", "build/Nodo.app/Contents/MacOS/Nodo"], text=True).split())
+          required = {"x86_64", "arm64"}
+          if not required.issubset(archs):
+              raise SystemExit(f"App não é universal: {sorted(archs)}")
+          print(f"Universal OK: {sorted(archs)}")
+          PY
+      - name: Package visual DMG and PKG; validate macOS 12 minimum on every Mach-O
+        run: |
+          OUT="$GITHUB_WORKSPACE/build" VERSAO=3.0.5 sh instaladores/mac/montar-dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NODO-macOS-12-plus-universal
+          path: |
+            build/Nodo-3.0.5-mac-universal.dmg
+            build/Nodo-3.0.5-mac-universal.pkg
+          if-no-files-found: error
+          retention-days: 30
+
+  windows-modern:
+    name: Windows 10 1809+ and 11 (x64)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 6.8.3 LTS / MSVC 2022
+        uses: jurplel/install-qt-action@v4.5.0
+        with:
+          version: '6.8.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNODO_BUILD_GUI=ON -DNODO_QT_MAJOR=6 -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Test CLI/server
+        shell: pwsh
+        run: |
+          $cli = Get-ChildItem build -Recurse -File -Filter nodo.exe | Select-Object -First 1
+          if (!$cli) { throw 'nodo.exe não foi gerado.' }
+          python testes/platform_smoke.py $cli.FullName
+      - name: Test GUI startup (offscreen)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $env:QT_QPA_PLATFORM_PLUGIN_PATH = Join-Path $env:QT_ROOT_DIR 'plugins/platforms'
+          $env:QT_PLUGIN_PATH = Join-Path $env:QT_ROOT_DIR 'plugins'
+          $gui = Get-ChildItem build -Recurse -File -Filter nodo-app.exe | Select-Object -First 1
+          if (!$gui) { throw 'nodo-app.exe não foi gerado.' }
+          python testes/desktop_smoke.py $gui.FullName
+      - name: Package portable x64 ZIP and verify runtime
+        shell: pwsh
+        run: ./instaladores/windows/empacotar.ps1 -Version 3.0.5 -Flavor modern-10-11
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NODO-Windows-10-11-x64
+          path: build/NODO-3.0.5-Windows-modern-10-11-x64.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  windows-legacy:
+    name: Windows 7 SP1 / 8.1 / 10 legacy (x86)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 5.15.2 and MinGW 8.1 (legacy Windows runtime)
+        uses: jurplel/install-qt-action@v4.5.0
+        with:
+          version: '5.15.2'
+          host: windows
+          target: desktop
+          arch: win32_mingw81
+          tools: 'tools_mingw,8.1.0-1-202004170606,qt.tools.win32_mingw810'
+          cache: true
+      - name: Configure x86 MinGW toolchain with Windows 7 API baseline
+        shell: pwsh
+        run: |
+          $mingw = Join-Path $env:IQTA_TOOLS 'mingw810_32/bin'
+          if (!(Test-Path (Join-Path $mingw 'g++.exe'))) { throw "MinGW 8.1 não encontrado em $mingw" }
+          "$mingw" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          cmake -S . -B build -G 'MinGW Makefiles' `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER="$mingw/gcc.exe" `
+            -DCMAKE_CXX_COMPILER="$mingw/g++.exe" `
+            -DCMAKE_MAKE_PROGRAM="$mingw/mingw32-make.exe" `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
+            -DNODO_BUILD_GUI=ON -DNODO_QT_MAJOR=5 `
+            '-DCMAKE_CXX_FLAGS=-D_WIN32_WINNT=0x0601 -DWINVER=0x0601'
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Test CLI/server
+        shell: pwsh
+        run: python testes/platform_smoke.py build/nodo.exe
+      - name: Test GUI startup (offscreen)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $env:QT_QPA_PLATFORM_PLUGIN_PATH = Join-Path $env:QT_ROOT_DIR 'plugins/platforms'
+          $env:QT_PLUGIN_PATH = Join-Path $env:QT_ROOT_DIR 'plugins'
+          python testes/desktop_smoke.py build/nodo-app.exe
+      - name: Package portable x86 ZIP and verify Qt 5.15 runtime
+        shell: pwsh
+        run: ./instaladores/windows/empacotar.ps1 -Version 3.0.5 -Flavor legacy-7-10
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NODO-Windows-7-10-x86
+          path: build/NODO-3.0.5-Windows-legacy-7-10-x86.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  linux:
+    name: Linux modern desktop (x86_64 / Ubuntu 22.04 baseline)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packaging and AppImage prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 file patchelf desktop-file-utils
+      - name: Install Qt 6.8.3 LTS
+        uses: jurplel/install-qt-action@v4.5.0
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNODO_BUILD_GUI=ON -DNODO_QT_MAJOR=6 -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Test CLI/server
+        run: python3 testes/platform_smoke.py build/nodo
+      - name: Test GUI startup (offscreen)
+        run: |
+          export QT_QPA_PLATFORM=offscreen
+          export QT_QPA_PLATFORM_PLUGIN_PATH="$QT_ROOT_DIR/plugins/platforms"
+          export QT_PLUGIN_PATH="$QT_ROOT_DIR/plugins"
+          python3 testes/desktop_smoke.py build/nodo-app
+      - name: Create DEB, tar.gz and AppImage
+        run: |
+          cd build && cpack -C Release
+          cd ..
+          QT_ROOT_DIR="$QT_ROOT_DIR" VERSION=3.0.5 bash instaladores/linux/montar-appimage.sh
+          test -s build/NODO-3.0.5-Linux-x86_64.AppImage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NODO-Linux-modern-x86_64
+          path: |
+            build/NODO-3.0.5-Linux-x86_64.AppImage
+            build/*.deb
+            build/*.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    name: Publish verified installers
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows-modern, windows-legacy, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all platform installers
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Verify that every expected family is present
+        run: |
+          ls -lah release-assets
+          test -s release-assets/Nodo-3.0.5-mac-universal.dmg
+          test -s release-assets/NODO-3.0.5-Windows-modern-10-11-x64.zip
+          test -s release-assets/NODO-3.0.5-Windows-legacy-7-10-x86.zip
+          test -s release-assets/NODO-3.0.5-Linux-x86_64.AppImage
+          compgen -G 'release-assets/*.deb' >/dev/null
+          compgen -G 'release-assets/*.tar.gz' >/dev/null
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: NODO ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/*.dmg
+            release-assets/*.pkg
+            release-assets/*.zip
+            release-assets/*.AppImage
+            release-assets/*.deb
+            release-assets/*.tar.gz
