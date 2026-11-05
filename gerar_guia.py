@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Gera guia.html e guia_embutido.hpp (a pagina /guia que o proprio Nodo serve) a partir do texto abaixo.
 import html
+import json
 E = html.escape
 def code(t): return '<pre><code>' + E(t.strip('\n')) + '</code></pre>'
 def p(t): return '<p>' + t + '</p>'
@@ -154,5 +155,7 @@ CSS = ':root{color-scheme:light dark;--bg:#fff;--fg:#14121c;--mut:#5b5870;--ac:#
 doc = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Guia de integração - Nodo</title><style>' + CSS + '</style></head><body><main>' + ''.join(S) + '</main></body></html>'
 open('guia.html', 'w').write(doc)
 assert ')HTML"' not in doc
-open('guia_embutido.hpp', 'w').write('#pragma once\n// Gerado por gerar_guia.py - nao edite a mao.\nstatic const char* GUIA_HTML = R"HTML(' + doc + ')HTML";\n')
+chunks = [doc[i:i+8000] for i in range(0, len(doc), 8000)]
+hpp = '#pragma once\\n// Gerado por gerar_guia.py - nao edite a mao.\\nstatic const char* GUIA_HTML =\\n' + ''.join('    ' + json.dumps(chunk, ensure_ascii=False) + '\\n' for chunk in chunks) + ';\\n'
+open('guia_embutido.hpp', 'w').write(hpp)
 print(len(doc), 'bytes')
