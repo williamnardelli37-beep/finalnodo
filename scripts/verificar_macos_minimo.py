@@ -17,6 +17,29 @@ def version_tuple(value):
     return tuple(int(part) for part in value.split(".") if part.isdigit())
 
 
+def deployment_versions(load_commands):
+    """Leia apenas minos/versão dos comandos de deployment do Mach-O.
+
+    Não use linhas genéricas 'version': o otool também imprime
+    'compatibility version' de bibliotecas (por exemplo 1167.5), que
+    NÃO representa a versão mínima do macOS.
+    """
+    found = []
+    blocks = re.split(r"(?=^Load command \\d+\\s*$)", load_commands, flags=re.MULTILINE)
+    for block in blocks:
+        if re.search(r"^\\s*cmd\\s+LC_BUILD_VERSION\\s*$", block, re.MULTILINE):
+            match = re.search(r"^\\s*minos\\s+([0-9]+(?:\\.[0-9]+){1,2})\\s*$",
+                              block, re.MULTILINE)
+        elif re.search(r"^\\s*cmd\\s+LC_VERSION_MIN_MACOSX\\s*$", block, re.MULTILINE):
+            match = re.search(r"^\\s*version\\s+([0-9]+(?:\\.[0-9]+){1,2})\\s*$",
+                              block, re.MULTILINE)
+        else:
+            continue
+        if match:
+            found.append(match.group(1))
+    return found
+
+
 def inspect_macho(path, wanted_archs, max_target):
     file_info = run(["file", "-b", str(path)])
     if "Mach-O" not in file_info:
@@ -27,8 +50,7 @@ def inspect_macho(path, wanted_archs, max_target):
         raise RuntimeError(f"{path}: arquiteturas {sorted(archs)}, esperado {sorted(wanted_archs)}")
 
     load_commands = run(["otool", "-l", str(path)])
-    versions = re.findall(r"^\s*(?:minos|version)\s+([0-9]+(?:\.[0-9]+){1,2})\s*$",
-                          load_commands, re.MULTILINE)
+    versions = deployment_versions(load_commands)
     if not versions:
         raise RuntimeError(f"{path}: não foi possível ler LC_BUILD_VERSION/LC_VERSION_MIN_MACOSX")
     for raw in versions:
