@@ -2,7 +2,6 @@
 """Confere arquitetura universal e deployment target de todos os Mach-O do app."""
 import argparse
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -17,27 +16,37 @@ def version_tuple(value):
     return tuple(int(part) for part in value.split(".") if part.isdigit())
 
 
-def deployment_versions(load_commands):
-    """Leia apenas minos/versão dos comandos de deployment do Mach-O.
+def deployment_targets(load_commands):
+    """Le SO os campos de versao minima de macOS: LC_BUILD_VERSION (minos, so
+    quando platform=MACOS) e o LC_VERSION_MIN_MACOSX legado (version). Ignora
+    de proposito qualquer outro campo chamado 'version' (LC_SOURCE_VERSION,
+    'current version'/'compatibility version' de bibliotecas, etc.): esses
+    nao sao a versao minima do sistema e ja causaram falso positivo aqui.
 
-    Não use linhas genéricas 'version': o otool também imprime
-    'compatibility version' de bibliotecas (por exemplo 1167.5), que
-    NÃO representa a versão mínima do macOS.
-    """
-    found = []
-    blocks = re.split(r"(?=^Load command \d+\s*$)", load_commands, flags=re.MULTILINE)
-    for block in blocks:
-        if re.search(r"^\s*cmd\s+LC_BUILD_VERSION\s*$", block, re.MULTILINE):
-            match = re.search(r"^\s*minos\s+([0-9]+(?:\.[0-9]+){1,2})\s*$",
-                              block, re.MULTILINE)
-        elif re.search(r"^\s*cmd\s+LC_VERSION_MIN_MACOSX\s*$", block, re.MULTILINE):
-            match = re.search(r"^\s*version\s+([0-9]+(?:\.[0-9]+){1,2})\s*$",
-                              block, re.MULTILINE)
-        else:
-            continue
-        if match:
-            found.append(match.group(1))
-    return found
+    O otool as vezes imprime a plataforma como numero em vez do nome (ex.:
+    'platform 1' em vez de 'platform MACOS') quando a versao do otool nao
+    reconhece totalmente o binario. 1 e o valor oficial de PLATFORM_MACOS
+    no mach-o/loader.h da Apple, entao aceitamos os dois formatos."""
+    versions = []
+    commands = load_commands.split("Load command ")
+    for block in commands:
+        if "cmd LC_BUILD_VERSION" in block:
+            linhas_plataforma = [l.strip() for l in block.splitlines() if l.strip().startswith("platform ")]
+            eh_macos = linhas_plataforma and linhas_plataforma[0].split()[1] in ("MACOS", "1")
+            if not eh_macos:
+                continue  # outra plataforma (ex.: MACCATALYST, iOS) nao conta aqui
+            for line in block.splitlines():
+                line = line.strip()
+                if line.startswith("minos "):
+                    versions.append(line.split()[1])
+                    break
+        elif "cmd LC_VERSION_MIN_MACOSX" in block:
+            for line in block.splitlines():
+                line = line.strip()
+                if line.startswith("version "):
+                    versions.append(line.split()[1])
+                    break
+    return versions
 
 
 def inspect_macho(path, wanted_archs, max_target):
@@ -50,7 +59,7 @@ def inspect_macho(path, wanted_archs, max_target):
         raise RuntimeError(f"{path}: arquiteturas {sorted(archs)}, esperado {sorted(wanted_archs)}")
 
     load_commands = run(["otool", "-l", str(path)])
-    versions = deployment_versions(load_commands)
+    versions = deployment_targets(load_commands)
     if not versions:
         raise RuntimeError(f"{path}: não foi possível ler LC_BUILD_VERSION/LC_VERSION_MIN_MACOSX")
     for raw in versions:

@@ -21,6 +21,21 @@ Copy-Item $Gui.FullName (Join-Path $Stage 'nodo-app.exe') -Force
 Copy-Item $Cli.FullName (Join-Path $Stage 'nodo.exe') -Force
 if (Test-Path 'icones/nodo.ico') { Copy-Item 'icones/nodo.ico' $Stage -Force }
 
+# Certificado GRATUITO "Loop" (autoassinado): assina os executaveis e guarda a parte publica em Loop.cer.
+try {
+  $Cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=Loop, O=Loop Web, C=BR' `
+    -CertStoreLocation 'Cert:\CurrentUser\My' -KeyAlgorithm RSA -KeyLength 2048 `
+    -HashAlgorithm SHA256 -NotAfter (Get-Date).AddYears(10)
+  foreach ($exe in @('nodo-app.exe', 'nodo.exe')) {
+    $sig = Set-AuthenticodeSignature -FilePath (Join-Path $Stage $exe) -Certificate $Cert -HashAlgorithm SHA256
+    if (!$sig.SignerCertificate) { throw "Nao assinou $exe ($($sig.StatusMessage))" }
+  }
+  Export-Certificate -Cert $Cert -FilePath (Join-Path $Stage 'Loop.cer') | Out-Null
+  Write-Host 'Executaveis assinados com o certificado Loop.'
+} catch {
+  Write-Warning "Assinatura Loop ignorada: $($_.Exception.Message)"
+}
+
 $qtWidgets = if ($Flavor -eq 'legacy-7-10') {
   # windeployqt --compiler-runtime copia os runtimes exigidos pelo executavel.
   # Completa a pasta apenas se algum runtime comum estiver disponivel no Qt Tools;
@@ -53,6 +68,7 @@ Execute nodo-app.exe para abrir o aplicativo; nodo.exe é a ferramenta de termin
 '@
 }
 Set-Content -Path (Join-Path $Stage 'LEIA-ME.txt') -Value $targetText -Encoding UTF8
+if (Test-Path 'COMO-ABRIR.txt') { Copy-Item 'COMO-ABRIR.txt' (Join-Path $Stage 'Como abrir na primeira vez.txt') -Force }
 
 # Teste rápido real do executável CLI e verificação dos componentes Qt empacotados.
 $help = & (Join-Path $Stage 'nodo.exe') --help 2>&1 | Out-String

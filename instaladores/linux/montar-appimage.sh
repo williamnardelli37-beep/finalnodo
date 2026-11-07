@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-VERSION="${VERSION:-3.0.5}"
+VERSION="${VERSION:-3.0.7}"
 QT_ROOT_DIR="${QT_ROOT_DIR:-${QT_ROOT:-}}"
 if [[ -z "$QT_ROOT_DIR" || ! -x "$QT_ROOT_DIR/bin/qmake" ]]; then
   echo "ERRO: QT_ROOT_DIR não aponta para uma instalação Qt válida." >&2

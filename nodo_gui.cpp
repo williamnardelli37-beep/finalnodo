@@ -318,7 +318,7 @@ struct Janela : QMainWindow {
 
   // ================================================================ construcao da janela
   Janela() {
-    setWindowTitle("NODO");
+    setWindowTitle("NODO v" NODO_VERSION_STRING);
     resize(1120, 740);
     setMinimumSize(900, 620);
     vidro = new Vidro;
